@@ -72,13 +72,16 @@ team_b_pitchers <- team_b %>%
   filter(gen_position %in% c("STARTER", "CLOSER"))
 
 
-##### Field Plot #####
+##### Random Game Objects #####
 
 # Setting up a tibble that will be used for a base plot
 # These are coordinates for points that will be overlayed on a baseball diamond
 base_plot <- tibble(value = c(1, 2, 3),
                     x = c(.675, .01, -.675),
                     y = c(.01, .7, .01))
+
+# Identifying outcomes that are outs
+out_outcomes <- c("so_range", "gb_range", "fb_range", "pu_range")
 
 
 #### UI ####
@@ -214,14 +217,22 @@ ui <- fluidPage(
       
       # Creating row tracking player movement through inning
       # TODO: Possibly create new tab for this and other stats
-      fluidRow(column(6, dataTableOutput(outputId = "game_summary")),
-               column(6, dataTableOutput(outputId = "outcome_movement"))),
+      fluidRow(dataTableOutput(outputId = "game_summary")),
       
       br(),
       
       # Creating row showing scoreboard and baseball diamond plot
       fluidRow(column(6, dataTableOutput(outputId = "scoreboard")),
-               column(6, plotlyOutput(outputId = "diamond_plot"))))
+               column(6, plotlyOutput(outputId = "diamond_plot")))),
+    
+    
+    ##### Stat Panel #####
+    
+    # We'll add an additional panel to track game stats
+    tabPanel(
+      title = "stats",
+      
+      fluidRow(dataTableOutput(outputId = "game_log")))
     )
   )
 
@@ -356,9 +367,8 @@ server <- function(input, output, session) {
   })
   
   
-  #### Game Page ####
+  ##### Game Page #####
   
-  out_outcomes <- c("so_range", "gb_range", "fb_range", "pu_range")
   total_outs <- reactiveVal(0)
   outs <- reactiveVal(0)
   innings <- reactiveVal(1)
@@ -699,7 +709,7 @@ server <- function(input, output, session) {
       outcome_tracker()
   })
   
-  output$outcome_movement <- renderDataTable(
+  output$game_log <- renderDataTable(
     datatable(outcome_tracker() %>%
                     filter(inning == innings()) %>%
                     mutate(index = row_number()) %>%
