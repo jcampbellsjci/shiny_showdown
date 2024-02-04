@@ -7,7 +7,9 @@ library(ggpubr)
 library(tidyverse)
 
 
-#### Player Selection ####
+#### Pre-Run ####
+
+##### Player Selection #####
 
 # Reading in player database
 # Making a few formatting edits
@@ -70,11 +72,16 @@ team_b_pitchers <- team_b %>%
   filter(gen_position %in% c("STARTER", "CLOSER"))
 
 
+##### Field Plot #####
+
 # Setting up a tibble that will be used for a base plot
 # These are coordinates for points that will be overlayed on a baseball diamond
 base_plot <- tibble(value = c(1, 2, 3),
                     x = c(.675, .01, -.675),
                     y = c(.01, .7, .01))
+
+
+#### UI ####
 
 ui <- fluidPage(
   
@@ -82,118 +89,144 @@ ui <- fluidPage(
   
   # Going to set up different tabs for various information
   tabsetPanel(
-    # Setting up a parameterized value tab
-    tabPanel("parameters",
-             sliderInput(inputId = "inning_input",
-                         label = "Number of Innings",
-                         min = 1, max = 9,
-                         value = 9),
-             selectInput(inputId = "player_selection_input",
-                         label = "Player Selection Style",
-                         choices = c("Random"))),
     
-    # Setting up a lineup setter tab
-    tabPanel("lineup",
-      fluidRow(column(4, orderInput("dest_a", "Team-A Lineup",
+    ##### Parameter Tab #####
+    
+    # Setting up a parameterized value panel
+    # This is where you can set game settings
+    tabPanel(
+      title = "parameters",
+      
+      sliderInput(inputId = "inning_input",
+                  label = "Number of Innings",
+                  min = 1, max = 9,
+                  value = 9),
+      
+      selectInput(inputId = "player_selection_input",
+                  label = "Player Selection Style",
+                  choices = c("Random"))),
+    
+    
+    ##### Lineup Tab #####
+    
+    # Setting up a lineup setter panel
+    # This is where you can view and edit your roster
+    tabPanel(
+      title = "lineup",
+      
+      # Creating a row of lineup setting actions for team a
+      fluidRow(column(4, orderInput(inputId = "dest_a",
+                                    label = "Team-A Lineup",
                                     items = team_a_batters$player)),
-               column(4, actionButton("set_lineup_a", "Set Team-A Lineup"),
+               column(4, actionButton(inputId = "set_lineup_a",
+                                      label = "Set Team-A Lineup"),
                       align = "center", style = "margin-top: 40px;"),
-               column(4, actionButton("autoset_lineup_a",
-                                      "Auto Set Team-A Lineup"),
+               column(4, actionButton(inputId = "autoset_lineup_a",
+                                      label = "Auto Set Team-A Lineup"),
                       align = "center", style = "margin-top: 40px;")),
       
       br(),
       
-      fluidRow(column(12, DT::dataTableOutput("test"))),
+      fluidRow(column(12, DT::dataTableOutput(outputId = "test"))),
       
-      fluidRow(
-        column(4,
-               fluidRow(column(12, DT::dataTableOutput("team_a_batters")),
-                        column(12, DT::dataTableOutput("team_a_pitchers"),
-                               div(style = "height:10px;")))),
-        column(4, div(uiOutput("lineup_image_a", align = "center"))),
-        column(4, div(uiOutput("rotation_image_a", align = "center")))
-      ),
+      # Creating a row showing roster for team a
+      fluidRow(column(4, fluidRow(
+        column(12, DT::dataTableOutput(outputId = "team_a_batters")),
+        column(12, DT::dataTableOutput(outputId = "team_a_pitchers"),
+               div(style = "height:10px;")))),
+        column(4, div(uiOutput(outputId = "lineup_image_a",
+                               align = "center"))),
+        column(4, div(uiOutput(outputId = "rotation_image_a",
+                               align = "center")))),
       
       br(),
       
-      fluidRow(column(4, orderInput("dest_b", "Team-B Lineup",
+      # Creating a row of lineup setting actions for team b
+      fluidRow(column(4, orderInput(inputId = "dest_b",
+                                    label = "Team-B Lineup",
                                     items = team_b_batters$player)),
-               column(4, actionButton("set_lineup_b", "Set Team-B Lineup"),
+               column(4, actionButton(inputId = "set_lineup_b",
+                                      label = "Set Team-B Lineup"),
                       align = "center", style = "margin-top: 40px;"),
-               column(4, actionButton("autoset_lineup_b",
-                                      "Auto Set Team-B Lineup"),
+               column(4, actionButton(inputId = "autoset_lineup_b",
+                                      label = "Auto Set Team-B Lineup"),
                       align = "center", style = "margin-top: 40px;")),
       
       br(),
       
+      # Creating a row showing roster for team b
       fluidRow(
-        column(4,
-               fluidRow(column(12, DT::dataTableOutput("team_b_batters")),
-                        column(12, DT::dataTableOutput("team_b_pitchers"),
-                               div(style = "height:10px;")))),
-        column(4, div(uiOutput("lineup_image_b", align = "center"))),
-        column(4, div(uiOutput("rotation_image_b", align = "center")))
-      ),
-    ),
+        column(4, fluidRow(
+          column(12, DT::dataTableOutput(outputId = "team_b_batters")),
+          column(12, DT::dataTableOutput(outputId = "team_b_pitchers"),
+                 div(style = "height:10px;")))),
+        column(4, div(uiOutput(outputId = "lineup_image_b",
+                               align = "center"))),
+        column(4, div(uiOutput(outputId = "rotation_image_b",
+                               align = "center"))))),
     
-    # Next is the actual game panel
-    tabPanel("game",
-      fluidRow(
-        column(2,
-               actionButton("die_roll", "Roll Dice",
-                            onclick = "Shiny.setInputValue('btnLabel', this.innerText);"),
-               align = "center",
-               style = "margin-top: 40px;"),
-        column(2,
-               fluidRow(column(12, align = "center",
-                               p(strong("Command Roll")),
-                               style = "font-size:17px; margin-top: 20px;",
-                               div(style = "height:10px;"))),
-               fluidRow(column(12, align = "center", textOutput("die_roll_1"),
-                               style = "font-size:16px;",
-                               div(style = "height:10px;")))),
-        column(2,
-               fluidRow(column(12, align = "center",
-                               p(strong("Outcome Roll")),
-                               style = "font-size:17px; margin-top: 20px;",
-                               div(style = "height:10px;"))),
-               fluidRow(column(12, align = "center", textOutput("die_roll_2"),
-                               style = "font-size:16px;",
-                               div(style = "height:10px;"))))
-      ),
+    
+    ##### Game Tab #####
+    
+    # Setting up a game panel
+    # This is where you actually play the game
+    tabPanel(
+      title = "game",
+      
+      # Creating row for rolling die and seeing output
+      fluidRow(column(2, actionButton(inputId = "die_roll",
+                                      label = "Roll Dice",
+                                      onclick = "Shiny.setInputValue('btnLabel', this.innerText);"),
+                      align = "center",
+                      style = "margin-top: 40px;"),
+               column(2, fluidRow(column(12, align = "center",
+                                         p(strong("Command Roll")),
+                                         style = "font-size:17px; margin-top: 20px;",
+                                         div(style = "height:10px;"))),
+                      fluidRow(column(12, align = "center",
+                                      textOutput(outputId = "die_roll_1"),
+                                      style = "font-size:16px;",
+                                      div(style = "height:10px;")))),
+               column(2, fluidRow(column(12, align = "center",
+                                         p(strong("Outcome Roll")),
+                                         style = "font-size:17px; margin-top: 20px;",
+                                         div(style = "height:10px;"))),
+                      fluidRow(column(12, align = "center",
+                                      textOutput(outputId = "die_roll_2"),
+                                      style = "font-size:16px;",
+                                      div(style = "height:10px;"))))),
       
       br(),
       
-      fluidRow(
-        column(6, DT::dataTableOutput("pitch_outcome")),
-        column(6, DT::dataTableOutput("outcome2"))
-      ),
+      # Creating row showing batter v pitcher and game outcome
+      fluidRow(column(6, DT::dataTableOutput(outputId = "pitch_outcome")),
+               column(6, DT::dataTableOutput(outputId = "outcome2"))),
       
       br(),
       
-      fluidRow(
-        column(6, div(uiOutput("game_image_a", align = "center"))),
-        column(6, div(uiOutput("game_image_b", align = "center")))
-      ),
+      # Creating row showing batter and pitcher cards
+      fluidRow(column(6, div(uiOutput(outputId = "game_image_a",
+                                      align = "center"))),
+               column(6, div(uiOutput(outputId = "game_image_b",
+                                      align = "center")))),
       
       br(),
       
-      fluidRow(
-        column(6, DT::dataTableOutput("game_summary")),
-        column(6, DT::dataTableOutput("outcome_movement"))
-      ),
+      # Creating row tracking player movement through inning
+      # TODO: Possibly create new tab for this and other stats
+      fluidRow(column(6, DT::dataTableOutput(outputId = "game_summary")),
+               column(6, DT::dataTableOutput(outputId = "outcome_movement"))),
       
       br(),
       
-      fluidRow(
-        column(6, DT::dataTableOutput("scoreboard")),
-        column(6, plotlyOutput("diamond_plot"))
-      )
+      # Creating row showing scoreboard and baseball diamond plot
+      fluidRow(column(6, DT::dataTableOutput(outputId = "scoreboard")),
+               column(6, plotlyOutput(outputId = "diamond_plot"))))
     )
   )
-)
 
+
+#### Server ####
 
 server <- function(input, output, session) {
   #### Lineup Page ####
