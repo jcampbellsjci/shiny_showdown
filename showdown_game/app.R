@@ -127,12 +127,12 @@ ui <- fluidPage(
       
       br(),
       
-      fluidRow(column(12, DT::dataTableOutput(outputId = "test"))),
+      fluidRow(column(12, dataTableOutput(outputId = "test"))),
       
       # Creating a row showing roster for team a
       fluidRow(column(4, fluidRow(
-        column(12, DT::dataTableOutput(outputId = "team_a_batters")),
-        column(12, DT::dataTableOutput(outputId = "team_a_pitchers"),
+        column(12, dataTableOutput(outputId = "team_a_batters")),
+        column(12, dataTableOutput(outputId = "team_a_pitchers"),
                div(style = "height:10px;")))),
         column(4, div(uiOutput(outputId = "lineup_image_a",
                                align = "center"))),
@@ -157,8 +157,8 @@ ui <- fluidPage(
       # Creating a row showing roster for team b
       fluidRow(
         column(4, fluidRow(
-          column(12, DT::dataTableOutput(outputId = "team_b_batters")),
-          column(12, DT::dataTableOutput(outputId = "team_b_pitchers"),
+          column(12, dataTableOutput(outputId = "team_b_batters")),
+          column(12, dataTableOutput(outputId = "team_b_pitchers"),
                  div(style = "height:10px;")))),
         column(4, div(uiOutput(outputId = "lineup_image_b",
                                align = "center"))),
@@ -199,8 +199,8 @@ ui <- fluidPage(
       br(),
       
       # Creating row showing batter v pitcher and game outcome
-      fluidRow(column(6, DT::dataTableOutput(outputId = "pitch_outcome")),
-               column(6, DT::dataTableOutput(outputId = "outcome2"))),
+      fluidRow(column(6, dataTableOutput(outputId = "pitch_outcome")),
+               column(6, dataTableOutput(outputId = "outcome2"))),
       
       br(),
       
@@ -214,13 +214,13 @@ ui <- fluidPage(
       
       # Creating row tracking player movement through inning
       # TODO: Possibly create new tab for this and other stats
-      fluidRow(column(6, DT::dataTableOutput(outputId = "game_summary")),
-               column(6, DT::dataTableOutput(outputId = "outcome_movement"))),
+      fluidRow(column(6, dataTableOutput(outputId = "game_summary")),
+               column(6, dataTableOutput(outputId = "outcome_movement"))),
       
       br(),
       
       # Creating row showing scoreboard and baseball diamond plot
-      fluidRow(column(6, DT::dataTableOutput(outputId = "scoreboard")),
+      fluidRow(column(6, dataTableOutput(outputId = "scoreboard")),
                column(6, plotlyOutput(outputId = "diamond_plot"))))
     )
   )
@@ -229,88 +229,106 @@ ui <- fluidPage(
 #### Server ####
 
 server <- function(input, output, session) {
-  #### Lineup Page ####
+  
+  ##### Setting Lineups #####
+  
+  ###### Reactive Input ######
   
   # We'll set up a reactive lineup input
   # This will take our lineup input and rearrange our team based on it
   # If you auto-set the lineup, it'll be ordered on player points
-  team_a_lineup <- reactiveValues(set_lineup = tibble(
-    player = team_a_batters$player))
-  observeEvent(input$autoset_lineup_a, {
-    team_a_lineup$set_lineup <- tibble(player = input$dest_a) %>%
-      inner_join(team_a_batters) %>%
+  
+  # Creating a reactive lineup tibble for team a
+  team_a_lineup <- reactiveValues(
+    set_lineup = team_a_batters)
+  
+  # Observing if user presses autoset lineup for team a
+  observeEvent(eventExpr = input$autoset_lineup_a, {
+    # Changing reactive lineup to be arranged by points
+    team_a_lineup$set_lineup <- team_a_batters %>%
       arrange(desc(points))
     
-    updateOrderInput(session, "dest_a",
-                     items = team_a_lineup$set_lineup$player)
-  })
-  observeEvent(input$set_lineup_a, {
-    team_a_lineup$set_lineup <- tibble(player = input$dest_a)
-  })
-  # Rendering table that will be shown
-  # Ordering by what we set our lineup order to
-  output$team_a_batters <- DT::renderDataTable({
-    datatable(team_a_batters %>%
-                arrange(match(player, team_a_lineup$set_lineup$player)) %>%
+    # Changing set lineup input to match the new lineup order
+    updateOrderInput(session = session, inputId = "dest_a",
+                     items = team_a_lineup$set_lineup$player)})
+  
+  # Observing if user presses set lineup for team a
+  observeEvent(eventExpr = input$set_lineup_a, {
+    # Changing reactive lineup to be arranged by set lineup input
+    team_a_lineup$set_lineup <- team_a_batters %>%
+      arrange(match(player, input$dest_a))})
+
+  ###### Table Output ######
+  
+  # Creating dataframe to show team a lineup, ordered by our input order
+  output$team_a_batters <- renderDataTable({
+    datatable(team_a_lineup$set_lineup %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))
-  })
-  # Doing same thing for team b
-  team_b_lineup <- reactiveValues(set_lineup = tibble(
-    player = team_b_batters$player))
-  observeEvent(input$autoset_lineup_b, {
-    team_b_lineup$set_lineup <- tibble(player = input$dest_b) %>%
-      inner_join(team_b_batters) %>%
+              options = list(dom = 't'))})
+  
+  # Creating a reactive lineup tibble for team b
+  team_b_lineup <- reactiveValues(
+    set_lineup = team_b_batters)
+  
+  # Observing if user presses autoset lineup for team b
+  observeEvent(eventExpr = input$autoset_lineup_b, {
+    # Changing reactive lineup to be arranged by points
+    team_b_lineup$set_lineup <- team_b_batters %>%
       arrange(desc(points))
     
-    updateOrderInput(session, "dest_b",
-                     items = team_b_lineup$set_lineup$player)
-  })
-  observeEvent(input$set_lineup_b, {
-    team_b_lineup$set_lineup <- tibble(player = input$dest_b)
-  })
-  output$team_b_batters <- DT::renderDataTable({
-    datatable(team_b_batters %>%
-                arrange(match(player, team_b_lineup$set_lineup$player)) %>%
+    # Changing set lineup input to match the new lineup order
+    updateOrderInput(session = session, inputId = "dest_b",
+                     items = team_b_lineup$set_lineup$player)})
+  
+  # Observing if user presses set lineup for team b
+  observeEvent(eventExpr = input$set_lineup_b, {
+    # Changing reactive lineup to be arranged by set lineup input
+    team_b_lineup$set_lineup <- team_b_batters %>%
+      arrange(match(player, input$dest_b))})
+  
+  # Creating dataframe to show team b lineup, ordered by our input order
+  output$team_b_batters <- renderDataTable({
+    datatable(team_b_lineup$set_lineup %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))
-  })
+              options = list(dom = 't'))})
   
+  # We'll also have a pitcher dataframe for each team
+  # There won't be anything to set here, though
   
-  # Creating images that will show up in lineup page when you select a player row
-  output$lineup_image_a <- renderUI({
-    tags$image(src = str_replace(
-      team_a_batters %>%
-        arrange(match(player, team_a_lineup$set_lineup$player)) %>%
-        .[input$team_a_batters_rows_selected, ] %>%
-        pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
-  })
-  output$lineup_image_b <- renderUI({
-    tags$image(src = str_replace(
-      team_b_batters %>%
-        arrange(match(player, team_b_lineup$set_lineup$player)) %>%
-        .[input$team_b_batters_rows_selected, ] %>%
-        pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
-  })
-  
-  
-  # Creating tables and getting images for pitchers on lineup screen
-  output$team_a_pitchers <- DT::renderDataTable({
+  # Creating dataframe to show team a pitchers
+  output$team_a_pitchers <- renderDataTable({
     datatable(team_a_pitchers %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
               options = list(dom = 't'))
   })
-  output$team_b_pitchers <- DT::renderDataTable({
+  
+  # Creating dataframe to show team b pitchers
+  output$team_b_pitchers <- renderDataTable({
     datatable(team_b_pitchers %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
               options = list(dom = 't'))
   })
+  
+  ###### Image Output ######
+  
+  # We'll show card images on the lineup page
+  # There will be a batter and pitcher card shown
+  # Image will be dynamic based on row selected on lineup output
+  
+  # Getting card image for selected team a batter
+  output$lineup_image_a <- renderUI({
+    tags$image(src = str_replace(
+      team_a_lineup$set_lineup %>%
+        .[input$team_a_batters_rows_selected, ] %>%
+        pull(card_path),
+      "card_images/", ""), width = "298px", height = "415px")
+  })
+  
+  # Getting card image for selected team a pitcher
   output$rotation_image_a <- renderUI({
     tags$image(src = str_replace(
       team_a_pitchers %>%
@@ -318,6 +336,17 @@ server <- function(input, output, session) {
         pull(card_path),
       "card_images/", ""), width = "298px", height = "415px")
   })
+  
+  # Getting card image for selected team b batter
+  output$lineup_image_b <- renderUI({
+    tags$image(src = str_replace(
+      team_b_lineup$set_lineup %>%
+        .[input$team_b_batters_rows_selected, ] %>%
+        pull(card_path),
+      "card_images/", ""), width = "298px", height = "415px")
+  })
+  
+  # Getting card image for selected team b pitcher
   output$rotation_image_b <- renderUI({
     tags$image(src = str_replace(
       team_b_pitchers %>%
@@ -670,8 +699,8 @@ server <- function(input, output, session) {
       outcome_tracker()
   })
   
-  output$outcome_movement <- DT::renderDataTable(
-    DT::datatable(outcome_tracker() %>%
+  output$outcome_movement <- renderDataTable(
+    datatable(outcome_tracker() %>%
                     filter(inning == innings()) %>%
                     mutate(index = row_number()) %>%
                     arrange(-index) %>%
@@ -680,9 +709,9 @@ server <- function(input, output, session) {
                     mutate(new_value = ifelse(new_value >= 4, 4, new_value))))
   
   total_innings <- tibble(team = rep(c("A", "B"), 9), inning = rep(c(1:9), 2))
-  output$scoreboard <- DT::renderDataTable(
+  output$scoreboard <- renderDataTable(
     tryCatch({
-      DT::datatable(outcome_tracker() %>%
+      datatable(outcome_tracker() %>%
                       group_by(team, inning = floor(inning)) %>%
                       mutate(index = row_number()) %>%
                       arrange(inning, -index) %>%
