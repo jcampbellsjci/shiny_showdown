@@ -115,7 +115,7 @@ ui <- fluidPage(
       title = "lineup",
       
       # Creating a row of lineup setting actions for team a
-      fluidRow(column(4, orderInput(inputId = "dest_a",
+      fluidRow(column(4, orderInput(inputId = "lineup_order_a",
                                     label = "Team-A Lineup",
                                     items = team_a_batters$player)),
                column(4, actionButton(inputId = "set_lineup_a",
@@ -142,7 +142,7 @@ ui <- fluidPage(
       br(),
       
       # Creating a row of lineup setting actions for team b
-      fluidRow(column(4, orderInput(inputId = "dest_b",
+      fluidRow(column(4, orderInput(inputId = "lineup_order_b",
                                     label = "Team-B Lineup",
                                     items = team_b_batters$player)),
                column(4, actionButton(inputId = "set_lineup_b",
@@ -249,14 +249,14 @@ server <- function(input, output, session) {
       arrange(desc(points))
     
     # Changing set lineup input to match the new lineup order
-    updateOrderInput(session = session, inputId = "dest_a",
+    updateOrderInput(session = session, inputId = "lineup_order_a",
                      items = team_a_lineup$set_lineup$player)})
   
   # Observing if user presses set lineup for team a
   observeEvent(eventExpr = input$set_lineup_a, {
     # Changing reactive lineup to be arranged by set lineup input
     team_a_lineup$set_lineup <- team_a_batters %>%
-      arrange(match(player, input$dest_a))})
+      arrange(match(player, input$lineup_order_a))})
 
   ###### Table Output ######
   
@@ -278,14 +278,14 @@ server <- function(input, output, session) {
       arrange(desc(points))
     
     # Changing set lineup input to match the new lineup order
-    updateOrderInput(session = session, inputId = "dest_b",
+    updateOrderInput(session = session, inputId = "lineup_order_b",
                      items = team_b_lineup$set_lineup$player)})
   
   # Observing if user presses set lineup for team b
   observeEvent(eventExpr = input$set_lineup_b, {
     # Changing reactive lineup to be arranged by set lineup input
     team_b_lineup$set_lineup <- team_b_batters %>%
-      arrange(match(player, input$dest_b))})
+      arrange(match(player, input$lineup_order_b))})
   
   # Creating dataframe to show team b lineup, ordered by our input order
   output$team_b_batters <- renderDataTable({
