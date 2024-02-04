@@ -6,6 +6,9 @@ library(plotly)
 library(ggpubr)
 library(tidyverse)
 
+
+#### Player Selection ####
+
 # Reading in player database
 # Making a few formatting edits
 showdown_df <- read_csv("../data/player_db.csv") %>%
@@ -16,6 +19,8 @@ showdown_df <- read_csv("../data/player_db.csv") %>%
     main_position %in% c("RELIEVER", "CLOSER") ~ "CLOSER",
     .default = main_position))
 
+# Team lineups and rotations are randomly selected
+# TODO: Create a "draft page" where you can choose from a random selection at each position
 # Looping through positions and randomly picking players for two teams
 position <- c("CA", "1B", "2B", "3B", "SS", "OF", "STARTER", "CLOSER")
 team_list <- list()
@@ -23,10 +28,12 @@ for (i in position) {
   player_option <- showdown_df %>%
     filter(gen_position == i)
   
+  # We sample 3 outfielders per team
   if(i == "OF"){
     sample <- player_option %>%
       sample_n(6) %>%
       mutate(team = c(rep("A", 3), rep("B", 3)))
+  # We sample 1 of every other position per team
   } else{
     sample <- player_option %>%
       sample_n(2) %>%
@@ -63,6 +70,8 @@ team_b_pitchers <- team_b %>%
   filter(gen_position %in% c("STARTER", "CLOSER"))
 
 
+# Setting up a tibble that will be used for a base plot
+# These are coordinates for points that will be overlayed on a baseball diamond
 base_plot <- tibble(value = c(1, 2, 3),
                     x = c(.675, .01, -.675),
                     y = c(.01, .7, .01))
@@ -73,7 +82,17 @@ ui <- fluidPage(
   
   # Going to set up different tabs for various information
   tabsetPanel(
-    # First setting up a lineup setter tab
+    # Setting up a parameterized value tab
+    tabPanel("parameters",
+             sliderInput(inputId = "inning_input",
+                         label = "Number of Innings",
+                         min = 1, max = 9,
+                         value = 9),
+             selectInput(inputId = "player_selection_input",
+                         label = "Player Selection Style",
+                         choices = c("Random"))),
+    
+    # Setting up a lineup setter tab
     tabPanel("lineup",
       fluidRow(column(4, orderInput("dest_a", "Team-A Lineup",
                                     items = team_a_batters$player)),
