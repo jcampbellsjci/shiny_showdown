@@ -177,6 +177,7 @@ ui <- fluidPage(
       title = "game",
       
       # Creating row for rolling die and seeing output
+      # This row will also contain the scoreboard
       fluidRow(column(2, actionButton(inputId = "die_roll",
                                       label = "Roll Dice",
                                       onclick = "Shiny.setInputValue('btnLabel', this.innerText);"),
@@ -197,33 +198,46 @@ ui <- fluidPage(
                       fluidRow(column(12, align = "center",
                                       textOutput(outputId = "die_roll_2"),
                                       style = "font-size:16px;",
+                                      div(style = "height:10px;")))),
+               column(4, dataTableOutput(outputId = "scoreboard")),
+               column(1, fluidRow(column(12, align = "center",
+                                         p(strong("Inning")),
+                                         style = "font-size:17px; margin-top: 20px;",
+                                         div(style = "height:10px;"))),
+                      fluidRow(column(12, align = "center",
+                                      textOutput(outputId = "current_inning"),
+                                      style = "font-size:16px;",
+                                      div(style = "height:10px;")))),
+               column(1, fluidRow(column(12, align = "center",
+                                         p(strong("Outs")),
+                                         style = "font-size:17px; margin-top: 20px;",
+                                         div(style = "height:10px;"))),
+                      fluidRow(column(12, align = "center",
+                                      textOutput(outputId = "current_outs"),
+                                      style = "font-size:16px;",
                                       div(style = "height:10px;"))))),
       
       br(),
       
       # Creating row showing batter v pitcher and game outcome
-      fluidRow(column(6, dataTableOutput(outputId = "pitch_outcome")),
-               column(6, dataTableOutput(outputId = "outcome2"))),
+      fluidRow(column(6, fluidRow(
+        column(12, dataTableOutput(outputId = "pitch_outcome"))),
+        fluidRow(column(12, plotlyOutput(outputId = "diamond_plot")))),
+               column(3, fluidRow(
+                 column(12, style = "height:100px;"),
+                 column(12, div(uiOutput(outputId = "game_image_b",
+                                         align = "center"))))),
+               column(3, fluidRow(
+                 column(12, style = "height:100px;"),
+                 column(12, div(uiOutput(outputId = "game_image_a",
+                                         align = "center")))))),
       
-      br(),
-      
-      # Creating row showing batter and pitcher cards
-      fluidRow(column(6, div(uiOutput(outputId = "game_image_a",
-                                      align = "center"))),
-               column(6, div(uiOutput(outputId = "game_image_b",
-                                      align = "center")))),
       
       br(),
       
       # Creating row tracking player movement through inning
       # TODO: Possibly create new tab for this and other stats
-      fluidRow(dataTableOutput(outputId = "game_summary")),
-      
-      br(),
-      
-      # Creating row showing scoreboard and baseball diamond plot
-      fluidRow(column(6, dataTableOutput(outputId = "scoreboard")),
-               column(6, plotlyOutput(outputId = "diamond_plot")))),
+      fluidRow(dataTableOutput(outputId = "game_summary"))),
     
     
     ##### Stat Panel #####
@@ -373,12 +387,7 @@ server <- function(input, output, session) {
   outs <- reactiveVal(0)
   innings <- reactiveVal(1)
   
-  output$game_summary <- renderDataTable({
-    datatable(tibble(total_outs = total_outs(),
-                     outs = outs(),
-                     innings = innings()),
-              options = list(dom = 't'))
-  })
+  output$outs <- renderText({outs()})
   
   batting_team <- reactive({
     if(floor(innings()) / innings() == 1){
@@ -495,7 +504,46 @@ server <- function(input, output, session) {
   pitch_winner <- reactive({
     ifelse(pitcher()$command + die_roll()$roll_1 >= batter()$command,
            "pitcher", "batter")})
-  # Creating an output data table that will show result of at bat
+  
+  # Determining what the outcome of the pitch will be
+  outcome_pitcher <- reactive({
+    pitcher() %>%
+      pivot_longer(cols = so_range:pu_range, names_to = "outcome",
+                   values_to = "range") %>%
+      select(player, year, outcome, range) %>%
+      mutate(range_min = as.numeric(str_split(range, "–",
+                                              simplify = T)[, 1]),
+             range_max = as.numeric(str_split(range, "–",
+                                              simplify = T)[, 2])) %>%
+      filter(!is.na(range) & range != "—") %>%
+      mutate(range_max = ifelse(is.na(range_max), range_min,
+                                range_max)) %>%
+      mutate(value = map2(range_min, range_max, seq)) %>%
+      unnest(value) %>%
+      filter(value == die_roll()$roll_2)})
+  
+  outcome_batter <- reactive({
+    batter() %>%
+      pivot_longer(cols = so_range:pu_range, names_to = "outcome",
+                   values_to = "range") %>%
+      select(player, year, outcome, range) %>%
+      mutate(range_min = as.numeric(str_split(range, "–",
+                                              simplify = T)[, 1]),
+             range_max = as.numeric(str_split(range, "–",
+                                              simplify = T)[, 2])) %>%
+      filter(!is.na(range) & range != "—") %>%
+      mutate(range_max = ifelse(is.na(range_max), range_min,
+                                range_max)) %>%
+      mutate(value = map2(range_min, range_max, seq)) %>%
+      unnest(value) %>%
+      filter(value == die_roll()$roll_2)})
+  
+  outcome <- reactive({
+    if(pitch_winner() == "pitcher"){
+      outcome_pitcher()
+      } else{
+        outcome_batter()}})
+  
   output$pitch_outcome <- renderDataTable({
     tryCatch({
       if(unique(batting_team()$team) == "A"){
@@ -505,12 +553,25 @@ server <- function(input, output, session) {
         } else{
           datatable(
             tibble(metric = c("player", "command", "output", "winner"),
-                   batter = c(batter()$player, batter()$command, batter()$command,
+                   batter = c(batter()$player, batter()$command,
+                              batter()$command,
                               ifelse(pitch_winner() == "pitcher", 0, 1)),
                    pitcher = c(pitcher()$player, pitcher()$command,
                                pitcher()$command + die_roll()$roll_1,
-                               ifelse(pitch_winner() == "pitcher", 1, 0))),
-            options = list(dom = 't'))
+                               ifelse(pitch_winner() == "pitcher", 1, 0))) %>%
+              bind_rows(outcome_pitcher() %>%
+                          mutate(batter_pitcher = "pitcher") %>%
+                          bind_rows(outcome_batter() %>%
+                                      mutate(batter_pitcher = "batter")) %>%
+                          mutate(metric = "outcome") %>%
+                          select(metric, batter_pitcher,
+                                 outcome) %>%
+                          pivot_wider(names_from = batter_pitcher,
+                                      values_from = outcome)),
+            options = list(dom = 't')) %>%
+            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
+                        valueColumns = 1,
+                        backgroundColor = styleEqual("outcome", "#c8e1cc"))
         }
       } else{
         if((batter_index_b() == 0 & floor(lineup_counter_b() == 0)) |
@@ -519,147 +580,28 @@ server <- function(input, output, session) {
         } else{
           datatable(
             tibble(metric = c("player", "command", "output", "winner"),
-                   batter = c(batter()$player, batter()$command, batter()$command,
+                   batter = c(batter()$player, batter()$command,
+                              batter()$command,
                               ifelse(pitch_winner() == "pitcher", 0, 1)),
                    pitcher = c(pitcher()$player, pitcher()$command,
                                pitcher()$command + die_roll()$roll_1,
-                               ifelse(pitch_winner() == "pitcher", 1, 0))),
-            options = list(dom = 't'))
+                               ifelse(pitch_winner() == "pitcher", 1, 0))) %>%
+              bind_rows(outcome_pitcher() %>%
+                          mutate(batter_pitcher = "pitcher") %>%
+                          bind_rows(outcome_batter() %>%
+                                      mutate(batter_pitcher = "batter")) %>%
+                          mutate(metric = "outcome") %>%
+                          select(metric, batter_pitcher,
+                                 outcome) %>%
+                          pivot_wider(names_from = batter_pitcher,
+                                      values_from = outcome)),
+            options = list(dom = 't')) %>%
+            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
+                        valueColumns = 1,
+                        backgroundColor = styleEqual("outcome", "#c8e1cc"))
         }
       }
     },
-    error = function(e){
-      tibble()
-    })
-  })
-  
-  # Determining what the outcome of the pitch will be
-  outcome <- reactive({
-    if(unique(batting_team()$team) == "A"){
-      if((batter_index_a() == 0 & floor(lineup_counter_a() == 0)) |
-         input$btnLabel == "Change Sides"){
-        tibble()
-      } else{
-        if(pitch_winner() == "pitcher"){
-          pitcher() %>%
-            pivot_longer(cols = so_range:pu_range, names_to = "outcome",
-                         values_to = "range") %>%
-            select(player, year, outcome, range) %>%
-            mutate(range_min = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 1]),
-                   range_max = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 2])) %>%
-            filter(!is.na(range) & range != "—") %>%
-            mutate(range_max = ifelse(is.na(range_max), range_min, range_max)) %>%
-            mutate(value = map2(range_min, range_max, seq)) %>%
-            unnest(value) %>%
-            filter(value == die_roll()$roll_2)
-        } else{
-          batter() %>%
-            pivot_longer(cols = so_range:pu_range, names_to = "outcome",
-                         values_to = "range") %>%
-            select(player, year, outcome, range) %>%
-            mutate(range_min = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 1]),
-                   range_max = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 2])) %>%
-            filter(!is.na(range) & range != "—") %>%
-            mutate(range_max = ifelse(is.na(range_max), range_min, range_max)) %>%
-            mutate(value = map2(range_min, range_max, seq)) %>%
-            unnest(value) %>%
-            filter(value == die_roll()$roll_2)
-        }
-      }
-    } else{
-      if((batter_index_b() == 0 & floor(lineup_counter_b() == 0)) |
-         input$btnLabel == "Change Sides"){
-        tibble()
-      } else{
-        if(pitch_winner() == "pitcher"){
-          pitcher() %>%
-            pivot_longer(cols = so_range:pu_range, names_to = "outcome",
-                         values_to = "range") %>%
-            select(player, year, outcome, range) %>%
-            mutate(range_min = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 1]),
-                   range_max = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 2])) %>%
-            filter(!is.na(range) & range != "—") %>%
-            mutate(range_max = ifelse(is.na(range_max), range_min, range_max)) %>%
-            mutate(value = map2(range_min, range_max, seq)) %>%
-            unnest(value) %>%
-            filter(value == die_roll()$roll_2)
-        } else{
-          batter() %>%
-            pivot_longer(cols = so_range:pu_range, names_to = "outcome",
-                         values_to = "range") %>%
-            select(player, year, outcome, range) %>%
-            mutate(range_min = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 1]),
-                   range_max = as.numeric(str_split(range, "–",
-                                                    simplify = T)[, 2])) %>%
-            filter(!is.na(range) & range != "—") %>%
-            mutate(range_max = ifelse(is.na(range_max), range_min, range_max)) %>%
-            mutate(value = map2(range_min, range_max, seq)) %>%
-            unnest(value) %>%
-            filter(value == die_roll()$roll_2)
-        }
-      }
-    }
-  })
-  output$outcome2 <- renderDataTable({
-    tryCatch({
-      if(unique(batting_team()$team) == "A"){
-        if((batter_index_a() == 0 & floor(lineup_counter_a() == 0)) |
-           input$btnLabel == "Change Sides"){
-          tibble()
-        } else{
-          datatable(
-            tibble(outcome = c("so_range", "gb_range", "fb_range", "bb_range",
-                               "single_range", "single_plus_range", "double_range",
-                               "triple_range", "hr_range", "pu_range")) %>%
-              left_join(batter() %>%
-                          pivot_longer(cols = so_range:pu_range,
-                                       names_to = "outcome",
-                                       values_to = "batter_range") %>%
-                          select(outcome, batter_range)) %>%
-              left_join(pitcher() %>%
-                          pivot_longer(cols = so_range:pu_range,
-                                       names_to = "outcome",
-                                       values_to = "pitcher_range") %>%
-                          select(outcome, pitcher_range)),
-            options = list(dom = 't')) %>%
-            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
-                        valueColumns = 1, 
-                        backgroundColor = styleEqual(outcome()$outcome, "#c8e1cc"))
-        }
-      } else{
-        if((batter_index_b() == 0 & floor(lineup_counter_b() == 0)) |
-           input$btnLabel == "Change Sides"){
-          tibble()
-        } else{
-          datatable(
-            tibble(outcome = c("so_range", "gb_range", "fb_range", "bb_range",
-                               "single_range", "single_plus_range", "double_range",
-                               "triple_range", "hr_range", "pu_range")) %>%
-              left_join(batter() %>%
-                          pivot_longer(cols = so_range:pu_range,
-                                       names_to = "outcome",
-                                       values_to = "batter_range") %>%
-                          select(outcome, batter_range)) %>%
-              left_join(pitcher() %>%
-                          pivot_longer(cols = so_range:pu_range,
-                                       names_to = "outcome",
-                                       values_to = "pitcher_range") %>%
-                          select(outcome, pitcher_range)),
-            options = list(dom = 't')) %>%
-            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
-                        valueColumns = 1, 
-                        backgroundColor = styleEqual(outcome()$outcome, "#c8e1cc"))
-        }
-      }
-    },
-    
     error = function(e){
       tibble()
     })
@@ -674,6 +616,10 @@ server <- function(input, output, session) {
     input$btnLabel == "Change Sides", 0, outs()))})
   observeEvent(input$die_roll, {innings(ifelse(
     input$btnLabel == "Change Sides", innings() + .5, innings()))})
+  
+  output$current_outs <- renderText({outs()})
+  
+  output$current_inning <- renderText({innings()})
   
   observeEvent(input$die_roll, {
     if (outs() == 3) {
@@ -731,13 +677,17 @@ server <- function(input, output, session) {
                       summarize(score = sum(case_when(new_value == 4 ~ 1,
                                                       .default = 0))) %>%
                       right_join(total_innings) %>%
-                      pivot_wider(names_from = inning, values_from = score))
+                      pivot_wider(names_from = inning, values_from = score),
+                options = list(dom = 't'))
     },
     error = function(e){
-      tibble(team = rep(c("A", "B"), 9), inning = rep(c(1:9), 2),
-             score = "") %>%
-        arrange(inning, team) %>%
-        pivot_wider(names_from = inning, values_from = score)
+      datatable(tibble(team = rep(c("A", "B"), 9),
+                       inning = rep(c(1:9), 2),
+                       score = "") %>%
+                  arrange(inning, team) %>%
+                  pivot_wider(names_from = inning,
+                              values_from = score),
+                options = list(dom = 't'))
     })
   )
   
