@@ -290,7 +290,7 @@ server <- function(input, output, session) {
     datatable(team_a_lineup$set_lineup %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))})
+              options = list(dom = 't', ordering = F))})
   
   # Creating a reactive lineup tibble for team b
   team_b_lineup <- reactiveValues(
@@ -317,7 +317,7 @@ server <- function(input, output, session) {
     datatable(team_b_lineup$set_lineup %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))})
+              options = list(dom = 't', ordering = F))})
   
   # We'll also have a pitcher dataframe for each team
   # There won't be anything to set here, though
@@ -327,7 +327,7 @@ server <- function(input, output, session) {
     datatable(team_a_pitchers %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))
+              options = list(dom = 't', ordering = F))
   })
   
   # Creating dataframe to show team b pitchers
@@ -335,7 +335,7 @@ server <- function(input, output, session) {
     datatable(team_b_pitchers %>%
                 select(player, year, gen_position),
               selection = list(mode = "single", selected = c(1)),
-              options = list(dom = 't'))
+              options = list(dom = 't', ordering = F))
   })
   
   ###### Image Output ######
@@ -383,12 +383,13 @@ server <- function(input, output, session) {
   
   ##### Game Page #####
   
+  # Setting reactive values to track total outs, current outs, and innings
   total_outs <- reactiveVal(0)
   outs <- reactiveVal(0)
   innings <- reactiveVal(1)
   
-  output$outs <- renderText({outs()})
-  
+  # Identifying batting and pitching teams
+  # Based on if inning is a whole number or not
   batting_team <- reactive({
     if(floor(innings()) / innings() == 1){
       team_a_batters
@@ -404,22 +405,19 @@ server <- function(input, output, session) {
     )
   })
   
-  
-  # The game page will be reliant on various reactive values
-  # These are reactive based on the roll die action button being clicked
-  # Die roll counter will be summing up how often the die is rolled
+  # Die roll counter sum up how often the die is rolled
   die_roll_counter_a <- reactiveVal(0)
   die_roll_counter_b <- reactiveVal(0)
-  # Lineup counter will be summing up how many times we go through the lineup
+  # Lineup counter sum up how many times we go through the lineup
   lineup_counter_a <- reactiveVal(0)
   lineup_counter_b <- reactiveVal(0)
-  # Die roll values will be tracking possible values for the first and second roll
+  # Die roll values track possible values for the first and second roll
   die_roll_value_1 <- reactiveVal(0)
   die_roll_value_2 <- reactiveVal(0)
   
-  # We'll observe each time someone clicks the roll die button and sample a 1-20 roll
-  # First roll will determine pitcher vs. batter chart
-  # Second roll will determine outcome
+  # Simulating two 20-side die rolls
+  # First is addition to pitcher control
+  # Second is outcome roll
   observeEvent(input$die_roll,
                {if(input$btnLabel != "Change Sides") {
                  die_roll_value_1(sample(1:20, 1))}
@@ -432,38 +430,39 @@ server <- function(input, output, session) {
                  else {
                    die_roll_value_2(0)
                  }})
+  
+  # Storing results in a tibble
   die_roll <- reactive({
     tibble(roll_1 = die_roll_value_1(),
            roll_2 = die_roll_value_2())
   })
-  # We'll present the roll output in the tab
+  
+  # Die roll output gets presented in game tab
   output$die_roll_1 <- renderText({die_roll()$roll_1})
   output$die_roll_2 <- renderText({die_roll()$roll_2})
   
-  # We'll now observe the number of die rolls and times through the lineup
-  # We'll use this to index the batter that should be up when a user clicks
+  # Counting the number of times a die is rolled while team is batting
   observeEvent(input$die_roll,
                {if(input$btnLabel != "Change Sides") {
                  ifelse(batting_team()$team == "A",
                         die_roll_counter_a(die_roll_counter_a() + 1),
-                        die_roll_counter_b(die_roll_counter_b() + 1))
-                 }})
+                        die_roll_counter_b(die_roll_counter_b() + 1))}})
+  # Counting how far we go through the lineup each die roll
   observeEvent(input$die_roll,
                {if(input$btnLabel != "Change Sides") {
                  ifelse(batting_team()$team == "A",
                         lineup_counter_a(lineup_counter_a() + (1 / 9)),
-                        lineup_counter_b(lineup_counter_b() + (1 / 9)))
-                 }})
+                        lineup_counter_b(lineup_counter_b() + (1 / 9)))}})
+  
+  # Use die roll counter and lineup counter to identify which batter is up
   batter_index_a <- renderText({
     if(unique(batting_team()$team) == "A"){
-      die_roll_counter_a() - (9 * floor(lineup_counter_a()))      
-    }
-  })
+      die_roll_counter_a() - (9 * floor(lineup_counter_a()))}
+    })
   batter_index_b <- renderText({
     if(unique(batting_team()$team) == "B"){
-      die_roll_counter_b() - (9 * floor(lineup_counter_b()))      
-    }
-  })
+      die_roll_counter_b() - (9 * floor(lineup_counter_b()))}
+    })
   
   # Determining batter that is up to bat
   batter <- reactive({
@@ -546,64 +545,41 @@ server <- function(input, output, session) {
   
   output$pitch_outcome <- renderDataTable({
     tryCatch({
-      if(unique(batting_team()$team) == "A"){
-        if((batter_index_a() == 0 & floor(lineup_counter_a() == 0)) |
-           (input$btnLabel == "Change Sides")){
-          tibble()
-        } else{
-          datatable(
-            tibble(metric = c("player", "command", "output", "winner"),
-                   batter = c(batter()$player, batter()$command,
-                              batter()$command,
-                              ifelse(pitch_winner() == "pitcher", 0, 1)),
-                   pitcher = c(pitcher()$player, pitcher()$command,
-                               pitcher()$command + die_roll()$roll_1,
-                               ifelse(pitch_winner() == "pitcher", 1, 0))) %>%
-              bind_rows(outcome_pitcher() %>%
-                          mutate(batter_pitcher = "pitcher") %>%
-                          bind_rows(outcome_batter() %>%
-                                      mutate(batter_pitcher = "batter")) %>%
-                          mutate(metric = "outcome") %>%
-                          select(metric, batter_pitcher,
-                                 outcome) %>%
-                          pivot_wider(names_from = batter_pitcher,
-                                      values_from = outcome)),
-            options = list(dom = 't')) %>%
-            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
-                        valueColumns = 1,
-                        backgroundColor = styleEqual("outcome", "#c8e1cc"))
-        }
-      } else{
-        if((batter_index_b() == 0 & floor(lineup_counter_b() == 0)) |
-           input$btnLabel == "Change Sides"){
-          tibble()
-        } else{
-          datatable(
-            tibble(metric = c("player", "command", "output", "winner"),
-                   batter = c(batter()$player, batter()$command,
-                              batter()$command,
-                              ifelse(pitch_winner() == "pitcher", 0, 1)),
-                   pitcher = c(pitcher()$player, pitcher()$command,
-                               pitcher()$command + die_roll()$roll_1,
-                               ifelse(pitch_winner() == "pitcher", 1, 0))) %>%
-              bind_rows(outcome_pitcher() %>%
-                          mutate(batter_pitcher = "pitcher") %>%
-                          bind_rows(outcome_batter() %>%
-                                      mutate(batter_pitcher = "batter")) %>%
-                          mutate(metric = "outcome") %>%
-                          select(metric, batter_pitcher,
-                                 outcome) %>%
-                          pivot_wider(names_from = batter_pitcher,
-                                      values_from = outcome)),
-            options = list(dom = 't')) %>%
-            formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
-                        valueColumns = 1,
-                        backgroundColor = styleEqual("outcome", "#c8e1cc"))
-        }
-      }
-    },
+      if(input$btnLabel == "Change Sides"){
+        datatable(
+          tibble(metric = c("player", "command", "output", "winner"),
+                 batter = NA,
+                 pitcher = NA),
+          options = list(dom = 't', ordering = F))
+      } else {
+        datatable(
+          tibble(metric = c("player", "command", "output", "winner"),
+                 batter = c(batter()$player, batter()$command,
+                            batter()$command,
+                            ifelse(pitch_winner() == "pitcher", 0, 1)),
+                 pitcher = c(pitcher()$player, pitcher()$command,
+                             pitcher()$command + die_roll()$roll_1,
+                             ifelse(pitch_winner() == "pitcher", 1, 0))) %>%
+            bind_rows(outcome_pitcher() %>%
+                        mutate(batter_pitcher = "pitcher") %>%
+                        bind_rows(outcome_batter() %>%
+                                    mutate(batter_pitcher = "batter")) %>%
+                        mutate(metric = "outcome") %>%
+                        select(metric, batter_pitcher,
+                               outcome) %>%
+                        pivot_wider(names_from = batter_pitcher,
+                                    values_from = outcome)),
+          options = list(dom = 't', ordering = F)) %>%
+          formatStyle(columns = ifelse(pitch_winner() == "pitcher", 3, 2),
+                      valueColumns = 1,
+                      backgroundColor = styleEqual("outcome", "#c8e1cc"))
+      }},
     error = function(e){
-      tibble()
+      datatable(
+        tibble(metric = c("player", "command", "output", "winner"),
+               batter = NA,
+               pitcher = NA),
+        options = list(dom = 't', ordering = F))
     })
   })
   
@@ -678,7 +654,7 @@ server <- function(input, output, session) {
                                                       .default = 0))) %>%
                       right_join(total_innings) %>%
                       pivot_wider(names_from = inning, values_from = score),
-                options = list(dom = 't'))
+                options = list(dom = 't', ordering = F))
     },
     error = function(e){
       datatable(tibble(team = rep(c("A", "B"), 9),
@@ -687,23 +663,22 @@ server <- function(input, output, session) {
                   arrange(inning, team) %>%
                   pivot_wider(names_from = inning,
                               values_from = score),
-                options = list(dom = 't'))
+                options = list(dom = 't', ordering = F))
     })
   )
   
   
   output$diamond_plot <- renderPlotly({
-    a <- outcome_tracker() %>%
-      filter(inning == innings()) %>%
-      mutate(index = row_number()) %>%
-      arrange(-index) %>%
-      mutate(new_value = ifelse(value == 0, 0, cumsum(value))) %>%
-      arrange(index) %>%
-      mutate(new_value = ifelse(new_value >= 4, 4, new_value)) %>%
-      inner_join(base_plot, by = c("new_value" = "value"))
-    
-    
     tryCatch({
+      a <- outcome_tracker() %>%
+        filter(inning == innings()) %>%
+        mutate(index = row_number()) %>%
+        arrange(-index) %>%
+        mutate(new_value = ifelse(value == 0, 0, cumsum(value))) %>%
+        arrange(index) %>%
+        mutate(new_value = ifelse(new_value >= 4, 4, new_value)) %>%
+        inner_join(base_plot, by = c("new_value" = "value"))
+      
       diamond <- a %>%
         ggplot(aes(x = x, y = y, text = paste0("Player: ", player, "\n",
                                                "Team: ", team))) +
@@ -712,6 +687,15 @@ server <- function(input, output, session) {
         ylim(-1, 1) +
         labs(x = "", y = "") +
         theme(axis.text = element_blank())
+      
+      ggplotly(diamond, tooltip = "text") %>% 
+        layout(images = list(
+          list(source =  base64enc::dataURI(file = "www/diamond.png"),
+               xref = "x", yref = "y",
+               x = -1.1, y = 1.1,
+               sizex = 2.2, sizey = 2.2,
+               sizing = "stretch", opacity = 0.8,
+               layer = "below")))
     },
     error = function(e){
       diamond <- tibble(x = 100, y = 100) %>%
@@ -721,17 +705,16 @@ server <- function(input, output, session) {
         ylim(-1, 1) +
         labs(x = "", y = "") +
         theme(axis.text = element_blank())
+      
+      ggplotly(diamond, tooltip = "text") %>% 
+        layout(images = list(
+          list(source =  base64enc::dataURI(file = "www/diamond.png"),
+               xref = "x", yref = "y",
+               x = -1.1, y = 1.1,
+               sizex = 2.2, sizey = 2.2,
+               sizing = "stretch", opacity = 0.8,
+               layer = "below")))
     })
-
-    
-    ggplotly(diamond, tooltip = "text") %>% 
-      layout(images = list(
-        list(source =  base64enc::dataURI(file = "www/diamond.png"),
-             xref = "x", yref = "y",
-             x = -1.1, y = 1.1,
-             sizex = 2.2, sizey = 2.2,
-             sizing = "stretch", opacity = 0.8,
-             layer = "below")))
   })
   
   
