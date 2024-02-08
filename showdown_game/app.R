@@ -176,68 +176,74 @@ ui <- fluidPage(
     tabPanel(
       title = "game",
       
-      # Creating row for rolling die and seeing output
-      # This row will also contain the scoreboard
-      fluidRow(column(2, actionButton(inputId = "die_roll",
-                                      label = "Roll Dice",
-                                      onclick = "Shiny.setInputValue('btnLabel', this.innerText);"),
-                      align = "center",
-                      style = "margin-top: 40px;"),
-               column(2, fluidRow(column(12, align = "center",
-                                         p(strong("Command Roll")),
-                                         style = "font-size:17px; margin-top: 20px;",
-                                         div(style = "height:10px;"))),
-                      fluidRow(column(12, align = "center",
-                                      textOutput(outputId = "die_roll_1"),
-                                      style = "font-size:16px;",
-                                      div(style = "height:10px;")))),
-               column(2, fluidRow(column(12, align = "center",
-                                         p(strong("Outcome Roll")),
-                                         style = "font-size:17px; margin-top: 20px;",
-                                         div(style = "height:10px;"))),
-                      fluidRow(column(12, align = "center",
-                                      textOutput(outputId = "die_roll_2"),
-                                      style = "font-size:16px;",
-                                      div(style = "height:10px;")))),
-               column(4, dataTableOutput(outputId = "scoreboard")),
-               column(1, fluidRow(column(12, align = "center",
-                                         p(strong("Inning")),
-                                         style = "font-size:17px; margin-top: 20px;",
-                                         div(style = "height:10px;"))),
-                      fluidRow(column(12, align = "center",
-                                      textOutput(outputId = "current_inning"),
-                                      style = "font-size:16px;",
-                                      div(style = "height:10px;")))),
-               column(1, fluidRow(column(12, align = "center",
-                                         p(strong("Outs")),
-                                         style = "font-size:17px; margin-top: 20px;",
-                                         div(style = "height:10px;"))),
-                      fluidRow(column(12, align = "center",
-                                      textOutput(outputId = "current_outs"),
-                                      style = "font-size:16px;",
-                                      div(style = "height:10px;"))))),
-      
-      br(),
-      
-      # Creating row showing batter v pitcher and game outcome
-      fluidRow(column(6, fluidRow(
-        column(12, dataTableOutput(outputId = "pitch_outcome"))),
-        fluidRow(column(12, plotlyOutput(outputId = "diamond_plot")))),
-               column(3, fluidRow(
-                 column(12, style = "height:100px;"),
-                 column(12, div(uiOutput(outputId = "game_image_b",
-                                         align = "center"))))),
-               column(3, fluidRow(
-                 column(12, style = "height:100px;"),
-                 column(12, div(uiOutput(outputId = "game_image_a",
-                                         align = "center")))))),
-      
-      
-      br(),
-      
-      # Creating row tracking player movement through inning
-      # TODO: Possibly create new tab for this and other stats
-      fluidRow(dataTableOutput(outputId = "game_summary"))),
+      conditionalPanel(
+        condition = "input.inning_input < output.current_inning"
+        ),
+      conditionalPanel(
+        condition = "input.inning_input >= output.current_inning",
+        # Creating row for rolling die and seeing output
+        # This row will also contain the scoreboard
+        fluidRow(column(2, actionButton(inputId = "die_roll",
+                                        label = "Roll Dice",
+                                        onclick = "Shiny.setInputValue('btnLabel', this.innerText);"),
+                        align = "center",
+                        style = "margin-top: 40px;"),
+                 column(2, fluidRow(column(12, align = "center",
+                                           p(strong("Command Roll")),
+                                           style = "font-size:17px; margin-top: 20px;",
+                                           div(style = "height:10px;"))),
+                        fluidRow(column(12, align = "center",
+                                        textOutput(outputId = "die_roll_1"),
+                                        style = "font-size:16px;",
+                                        div(style = "height:10px;")))),
+                 column(2, fluidRow(column(12, align = "center",
+                                           p(strong("Outcome Roll")),
+                                           style = "font-size:17px; margin-top: 20px;",
+                                           div(style = "height:10px;"))),
+                        fluidRow(column(12, align = "center",
+                                        textOutput(outputId = "die_roll_2"),
+                                        style = "font-size:16px;",
+                                        div(style = "height:10px;")))),
+                 column(4, dataTableOutput(outputId = "scoreboard")),
+                 column(1, fluidRow(column(12, align = "center",
+                                           p(strong("Inning")),
+                                           style = "font-size:17px; margin-top: 20px;",
+                                           div(style = "height:10px;"))),
+                        fluidRow(column(12, align = "center",
+                                        textOutput(outputId = "current_inning"),
+                                        style = "font-size:16px;",
+                                        div(style = "height:10px;")))),
+                 column(1, fluidRow(column(12, align = "center",
+                                           p(strong("Outs")),
+                                           style = "font-size:17px; margin-top: 20px;",
+                                           div(style = "height:10px;"))),
+                        fluidRow(column(12, align = "center",
+                                        textOutput(outputId = "current_outs"),
+                                        style = "font-size:16px;",
+                                        div(style = "height:10px;"))))),
+        
+        br(),
+        
+        # Creating row showing batter v pitcher and game outcome
+        fluidRow(column(6, fluidRow(
+          column(12, dataTableOutput(outputId = "pitch_outcome"))),
+          fluidRow(column(12, plotlyOutput(outputId = "diamond_plot")))),
+          column(3, fluidRow(
+            column(12, style = "height:100px;"),
+            column(12, div(uiOutput(outputId = "game_image_b",
+                                    align = "center"))))),
+          column(3, fluidRow(
+            column(12, style = "height:100px;"),
+            column(12, div(uiOutput(outputId = "game_image_a",
+                                    align = "center")))))),
+        
+        
+        br(),
+        
+        # Creating row tracking player movement through inning
+        # TODO: Possibly create new tab for this and other stats
+        fluidRow(dataTableOutput(outputId = "game_summary"))
+      )),
     
     
     ##### Stat Panel #####
@@ -596,6 +602,7 @@ server <- function(input, output, session) {
   output$current_outs <- renderText({outs()})
   
   output$current_inning <- renderText({innings()})
+  outputOptions(output, "current_inning", suspendWhenHidden = F)
   
   observeEvent(input$die_roll, {
     if (outs() == 3) {
@@ -641,19 +648,40 @@ server <- function(input, output, session) {
                     mutate(new_value = ifelse(new_value >= 4, 4, new_value))))
   
   total_innings <- tibble(team = rep(c("A", "B"), 9), inning = rep(c(1:9), 2))
+  
+  score_df <- reactive({
+    outcome_tracker() %>%
+      group_by(team, inning = floor(inning)) %>%
+      mutate(index = row_number()) %>%
+      arrange(inning, -index) %>%
+      mutate(new_value = ifelse(value == 0, 0, cumsum(value))) %>%
+      arrange(inning, index) %>%
+      mutate(new_value = ifelse(new_value >= 4, 4, new_value)) %>%
+      summarize(score = sum(case_when(new_value == 4 ~ 1,
+                                      .default = 0)))})
+  
+  total_score <- reactive({
+    score_df() %>%
+      group_by(team) %>%
+      summarize(score = sum(score))
+  })
+  output$team_a_score <- renderText({
+    total_score() %>%
+      filter(team == "A") %>%
+      pull(score)})
+  output$team_b_score <- renderText({
+    total_score() %>%
+      filter(team == "B") %>%
+      pull(score)})
+  
   output$scoreboard <- renderDataTable(
     tryCatch({
-      datatable(outcome_tracker() %>%
-                      group_by(team, inning = floor(inning)) %>%
-                      mutate(index = row_number()) %>%
-                      arrange(inning, -index) %>%
-                      mutate(new_value = ifelse(value == 0, 0, cumsum(value))) %>%
-                      arrange(inning, index) %>%
-                      mutate(new_value = ifelse(new_value >= 4, 4, new_value)) %>%
-                      summarize(score = sum(case_when(new_value == 4 ~ 1,
-                                                      .default = 0))) %>%
-                      right_join(total_innings) %>%
-                      pivot_wider(names_from = inning, values_from = score),
+      datatable(score_df() %>%
+                  right_join(total_innings) %>%
+                  pivot_wider(names_from = inning,
+                              values_from = score) %>%
+                  left_join(total_score()) %>%
+                  mutate(score = ifelse(is.na(score), 0, score)),
                 options = list(dom = 't', ordering = F))
     },
     error = function(e){
@@ -662,7 +690,8 @@ server <- function(input, output, session) {
                        score = "") %>%
                   arrange(inning, team) %>%
                   pivot_wider(names_from = inning,
-                              values_from = score),
+                              values_from = score) %>%
+                  mutate(score = c(0, 0)),
                 options = list(dom = 't', ordering = F))
     })
   )
