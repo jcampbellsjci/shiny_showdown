@@ -177,10 +177,10 @@ ui <- fluidPage(
       title = "game",
       
       conditionalPanel(
-        condition = "input.inning_input < output.current_inning"
-        ),
+        condition = "(input.inning_input == floor(output.current_inning))"
+      ),
       conditionalPanel(
-        condition = "input.inning_input >= output.current_inning",
+        condition = "(input.inning_input != floor(output.current_inning))",
         # Creating row for rolling die and seeing output
         # This row will also contain the scoreboard
         fluidRow(column(2, actionButton(inputId = "die_roll",
@@ -356,7 +356,7 @@ server <- function(input, output, session) {
       team_a_lineup$set_lineup %>%
         .[input$team_a_batters_rows_selected, ] %>%
         pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
+      "showdown_game/www/", ""), width = "298px", height = "415px")
   })
   
   # Getting card image for selected team a pitcher
@@ -365,7 +365,7 @@ server <- function(input, output, session) {
       team_a_pitchers %>%
         .[input$team_a_pitchers_rows_selected, ] %>%
         pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
+      "showdown_game/www/", ""), width = "298px", height = "415px")
   })
   
   # Getting card image for selected team b batter
@@ -374,7 +374,7 @@ server <- function(input, output, session) {
       team_b_lineup$set_lineup %>%
         .[input$team_b_batters_rows_selected, ] %>%
         pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
+      "showdown_game/www/", ""), width = "298px", height = "415px")
   })
   
   # Getting card image for selected team b pitcher
@@ -383,7 +383,7 @@ server <- function(input, output, session) {
       team_b_pitchers %>%
         .[input$team_b_pitchers_rows_selected, ] %>%
         pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
+      "showdown_game/www/", ""), width = "298px", height = "415px")
   })
   
   
@@ -669,10 +669,18 @@ server <- function(input, output, session) {
     total_score() %>%
       filter(team == "A") %>%
       pull(score)})
+  outputOptions(output, "team_a_score", suspendWhenHidden = F)
   output$team_b_score <- renderText({
     total_score() %>%
       filter(team == "B") %>%
       pull(score)})
+  outputOptions(output, "team_b_score", suspendWhenHidden = F)
+  output$in_lead <- renderText({
+    total_score() %>%
+      mutate(max_score = max(score)) %>%
+      filter(max_score == score) %>%
+      pull(team)
+  })
   
   output$scoreboard <- renderDataTable(
     tryCatch({
@@ -753,21 +761,21 @@ server <- function(input, output, session) {
       if(input$btnLabel == "Change Sides") {
         tags$image(src = str_replace(
           batting_team() %>% .[0, ] %>% pull(card_path),
-          "card_images/", ""), width = "298px", height = "415px")
+          "showdown_game/www/", ""), width = "298px", height = "415px")
       } else {
         tags$image(src = str_replace(
           batter() %>% pull(card_path),
-          "card_images/", ""), width = "298px", height = "415px")}},
+          "showdown_game/www/", ""), width = "298px", height = "415px")}},
       error = function(e){
         tags$image(src = str_replace(
           batting_team() %>% .[0, ] %>% pull(card_path),
-          "card_images/", ""), width = "298px", height = "415px")
+          "showdown_game/www/", ""), width = "298px", height = "415px")
       })
     })
   output$game_image_b <- renderUI({
     tags$image(src = str_replace(
       pitcher() %>% pull(card_path),
-      "card_images/", ""), width = "298px", height = "415px")
+      "showdown_game/www/", ""), width = "298px", height = "415px")
   })
   
   
